@@ -61,7 +61,6 @@
 
         function connect() {
             statusElement.textContent = '🟡 Подключение...';
-            // ### ИСПРАВЛЕНО: Добавляем '/stream' к адресу подключения ###
             const fullUrl = NGROK_WSS_URL + "/stream";
             console.log(`Подключение к ${fullUrl}`);
 
