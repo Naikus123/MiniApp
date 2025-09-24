@@ -51,7 +51,7 @@
 
     <script>
         // ### ВАЖНО: Вставьте сюда ваш публичный WSS адрес от ngrok ###
-        const NGROK_WSS_URL = "wss://192.168.81.135.ngrok-free.app/stream"; 
+        const NGROK_WSS_URL = "wss://192.168.81.135.ngrok-free.app"; 
         // ### -------------------------------------------------- ###
 
         const statusElement = document.getElementById('status');
@@ -61,11 +61,12 @@
 
         function connect() {
             statusElement.textContent = '🟡 Подключение...';
-            console.log(`Подключение к ${NGROK_WSS_URL}`);
+            // ### ИСПРАВЛЕНО: Добавляем '/stream' к адресу подключения ###
+            const fullUrl = NGROK_WSS_URL + "/stream";
+            console.log(`Подключение к ${fullUrl}`);
 
             try {
-                // Исправлено: Добавляем '/stream' к адресу подключения
-                socket = new WebSocket(NGROK_WSS_URL);
+                socket = new WebSocket(fullUrl);
 
                 socket.onopen = function() {
                     console.log("Соединение установлено.");
