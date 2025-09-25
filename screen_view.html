@@ -1,111 +1,112 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Screen Stream</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #181818;
-            color: white;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-        }
-        #screen {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            display: none;
-        }
-        #status {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 5px 10px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        #initial-message {
-            padding: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Screen Stream</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #181818;
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+    #screen {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: none;
+    }
+    #status {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 5px 10px;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+    #initial-message {
+        padding: 20px;
+    }
+  </style>
 </head>
 <body>
+  <img id="screen" />
+  <div id="initial-message">
+    <h1>Демонстрация экрана</h1>
+    <p>Ожидание подключения и начала трансляции...</p>
+  </div>
+  <div id="status">⚪ Ожидание...</div>
 
-    <img id="screen" src="" alt="Экран ПК"/>
-    <div id="initial-message">
-        <h1>Демонстрация экрана</h1>
-        <p>Для начала трансляции, вернитесь в чат с ботом и нажмите "Начать трансляцию" в Панели управления.</p>
-    </div>
-    <div id="status">⚪ Ожидание...</div>
+  <script>
+    const NGROK_WSS_URL = "wss://ВАШ_АДРЕС.ngrok-free.app";
 
-    <script>
-        // ### ВАЖНО: Вставьте сюда ваш публичный WSS адрес от ngrok ###
-        const NGROK_WSS_URL = "wss://unillusory-betsey-nonsecretively.ngrok-free.dev"; 
-        // ### -------------------------------------------------- ###
+    const screenElement = document.getElementById('screen');
+    const statusElement = document.getElementById('status');
+    const initialMessageElement = document.getElementById('initial-message');
+    let socket;
 
-        const statusElement = document.getElementById('status');
-        const screenElement = document.getElementById('screen');
-        const initialMessageElement = document.getElementById('initial-message');
-        let socket;
+    function connect() {
+        statusElement.textContent = '🟡 Подключение...';
+        const fullUrl = NGROK_WSS_URL + "/stream";
+        console.log(`Подключение к ${fullUrl}`);
 
-        function connect() {
-            statusElement.textContent = '🟡 Подключение...';
-            const fullUrl = NGROK_WSS_URL + "/stream";
-            console.log(`Подключение к ${fullUrl}`);
+        try {
+            socket = new WebSocket(fullUrl);
+            // ### ИСПРАВЛЕНО: Указываем, что будем получать бинарные данные ###
+            socket.binaryType = "arraybuffer";
 
-            try {
-                socket = new WebSocket(fullUrl);
+            socket.onopen = function() {
+                console.log("Соединение установлено.");
+                statusElement.textContent = '✅ Подключено';
+                statusElement.style.color = '#76ff7a';
+            };
 
-                socket.onopen = function() {
-                    console.log("Соединение установлено.");
-                    statusElement.textContent = '✅ Подключено';
-                    statusElement.style.color = '#76ff7a';
-                };
+            // ### ИСПРАВЛЕНО: Обрабатываем бинарные данные через Blob ###
+            socket.onmessage = function(event) {
+                const blob = new Blob([event.data], { type: "image/jpeg" });
+                screenElement.src = URL.createObjectURL(blob);
 
-                socket.onmessage = function(event) {
-                    const imageData = event.data;
-                    screenElement.src = 'data:image/jpeg;base64,' + imageData;
+                if (screenElement.style.display === 'none') {
+                    screenElement.style.display = 'block';
+                    initialMessageElement.style.display = 'none';
+                }
+            };
 
-                    if (screenElement.style.display === 'none') {
-                        screenElement.style.display = 'block';
-                        initialMessageElement.style.display = 'none';
-                    }
-                };
+            socket.onclose = function(event) {
+                console.log('Соединение закрыто. Код: ' + event.code);
+                statusElement.textContent = '🔴 Отключено';
+                statusElement.style.color = '#ff7676';
+                setTimeout(connect, 3000);
+            };
 
-                socket.onclose = function(event) {
-                    console.log('Соединение закрыто. Код: ' + event.code);
-                    statusElement.textContent = '🔴 Отключено';
-                    statusElement.style.color = '#ff7676';
-                    setTimeout(connect, 3000);
-                };
-
-                socket.onerror = function(error) {
-                    console.error('Ошибка WebSocket:', error);
-                    statusElement.textContent = '❌ Ошибка';
-                    statusElement.style.color = '#ff7676';
-                };
-
-            } catch (e) {
-                console.error("Не удалось создать WebSocket:", e);
+            socket.onerror = function(error) {
+                console.error('Ошибка WebSocket:', error);
                 statusElement.textContent = '❌ Ошибка';
                 statusElement.style.color = '#ff7676';
-            }
-        }
-        
-        Telegram.WebApp.ready();
-        connect();
+            };
 
-    </script>
+        } catch (e) {
+            console.error("Не удалось создать WebSocket:", e);
+            statusElement.textContent = '❌ Ошибка';
+            statusElement.style.color = '#ff7676';
+        }
+    }
+    
+    Telegram.WebApp.ready();
+    connect();
+
+  </script>
 </body>
 </html>
+
