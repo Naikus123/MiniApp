@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Screen Stream</title>
+    <!-- Подключение официального скрипта Telegram Web App -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        /* Базовые стили для body и html */
         body, html {
             margin: 0;
             padding: 0;
@@ -20,21 +22,27 @@
             align-items: center;
             text-align: center;
         }
+        /* Стили для изображения, которое будет показывать экран */
         #screen {
             max-width: 100%;
             max-height: 100%;
-            object-fit: contain;
-            display: none;
+            object-fit: contain; /* Сохраняет пропорции изображения */
+            display: none; /* Изначально скрыто */
+            transition: opacity 0.2s ease-in-out; /* Плавное появление */
         }
+        /* Стили для блока статуса в углу экрана */
         #status {
             position: absolute;
             top: 10px;
             right: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.6);
             padding: 5px 10px;
             border-radius: 8px;
             font-size: 14px;
+            z-index: 10;
+            transition: color 0.3s, background-color 0.3s;
         }
+        /* Стили для приветственного сообщения */
         #initial-message {
             padding: 20px;
         }
@@ -42,71 +50,117 @@
 </head>
 <body>
 
+    <!-- Элемент, куда будет выводиться трансляция -->
     <img id="screen" src="" alt="Экран ПК"/>
+    
+    <!-- Приветственное сообщение, которое скрывается при начале трансляции -->
     <div id="initial-message">
         <h1>Демонстрация экрана</h1>
         <p>Для начала трансляции, вернитесь в чат с ботом и нажмите "Начать трансляцию" в Панели управления.</p>
     </div>
+
+    <!-- Индикатор статуса подключения -->
     <div id="status">⚪ Ожидание...</div>
 
     <script>
-        // ### ВАЖНО: Вставьте сюда ваш публичный WSS адрес от ngrok ###
-        const NGROK_WSS_URL = "wss://unillusory-betsey-nonsecretively.ngrok-free.dev"; 
-        // ### -------------------------------------------------- ###
+        // ### ВАЖНО: Вставьте сюда ваш актуальный публичный WSS адрес от ngrok ###
+        const NGROK_WSS_URL = "wss://your-ngrok-address.ngrok-free.dev";  
+        // ### ---------------------------------------------------------------- ###
 
+        // Получаем ссылки на DOM-элементы для дальнейшей работы
         const statusElement = document.getElementById('status');
         const screenElement = document.getElementById('screen');
         const initialMessageElement = document.getElementById('initial-message');
         let socket;
 
+        /**
+         * Функция для установки WebSocket соединения.
+         */
         function connect() {
+            // Обновляем статус
             statusElement.textContent = '🟡 Подключение...';
+            statusElement.style.color = '#fdd835';
+            
+            // Формируем полный URL для подключения к серверу
             const fullUrl = NGROK_WSS_URL + "/stream";
-            console.log(`Подключение к ${fullUrl}`);
+            console.log(`Connecting to ${fullUrl}`);
 
             try {
+                // Создаем новый WebSocket объект
                 socket = new WebSocket(fullUrl);
 
+                // Обработчик события: соединение успешно установлено
                 socket.onopen = function() {
-                    console.log("Соединение установлено.");
+                    console.log("Connection established.");
                     statusElement.textContent = '✅ Подключено';
                     statusElement.style.color = '#76ff7a';
                 };
 
+                /**
+                 * Обработчик события: получены данные от сервера.
+                 * Этот блок корректно обрабатывает данные, приходящие как в виде строки (string),
+                 * так и в виде бинарного объекта (Blob), что обеспечивает стабильную работу.
+                 */
                 socket.onmessage = function(event) {
-                    const imageData = event.data;
-                    screenElement.src = 'data:image/jpeg;base64,' + imageData;
+                    const processImage = (base64String) => {
+                        // Устанавливаем источник изображения, добавляя необходимый префикс
+                        screenElement.src = 'data:image/jpeg;base64,' + base64String;
+                        // Если это первый кадр, показываем элемент img и скрываем приветствие
+                        if (screenElement.style.display === 'none') {
+                            screenElement.style.display = 'block';
+                            initialMessageElement.style.display = 'none';
+                        }
+                    };
 
-                    if (screenElement.style.display === 'none') {
-                        screenElement.style.display = 'block';
-                        initialMessageElement.style.display = 'none';
+                    // Проверяем, являются ли данные объектом Blob
+                    if (event.data instanceof Blob) {
+                        const reader = new FileReader();
+                        // Этот обработчик сработает, когда Blob будет полностью прочитан
+                        reader.onload = function() {
+                            // reader.result содержит строку в формате Data URL (e.g., "data:image/jpeg;base64,...")
+                            // Отделяем только саму base64-строку
+                            const base64Data = this.result.split(',')[1];
+                            processImage(base64Data);
+                        };
+                        // Начинаем асинхронное чтение Blob как Data URL
+                        reader.readAsDataURL(event.data);
+                    } else {
+                        // Если данные уже пришли в виде строки, обрабатываем их напрямую
+                        processImage(event.data);
                     }
                 };
 
+                // Обработчик события: соединение закрыто
                 socket.onclose = function(event) {
-                    console.log('Соединение закрыто. Код: ' + event.code);
+                    console.log('Connection closed. Code: ' + event.code);
                     statusElement.textContent = '🔴 Отключено';
                     statusElement.style.color = '#ff7676';
+                    // Скрываем изображение и показываем начальное сообщение
+                    screenElement.style.display = 'none';
+                    initialMessageElement.style.display = 'block';
+                    // Пытаемся переподключиться через 3 секунды
                     setTimeout(connect, 3000);
                 };
 
+                // Обработчик события: произошла ошибка соединения
                 socket.onerror = function(error) {
-                    console.error('Ошибка WebSocket:', error);
+                    console.error('WebSocket Error:', error);
                     statusElement.textContent = '❌ Ошибка';
                     statusElement.style.color = '#ff7676';
                 };
 
             } catch (e) {
-                console.error("Не удалось создать WebSocket:", e);
-                statusElement.textContent = '❌ Ошибка';
+                console.error("Failed to create WebSocket:", e);
+                statusElement.textContent = '❌ Критическая ошибка';
                 statusElement.style.color = '#ff7676';
             }
         }
         
+        // Сообщаем Telegram, что веб-приложение готово к работе
         Telegram.WebApp.ready();
+        // Запускаем процесс подключения
         connect();
 
     </script>
 </body>
 </html>
-
